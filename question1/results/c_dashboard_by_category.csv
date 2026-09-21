@@ -1,0 +1,16 @@
+category_id,category_name,department,revenue,pct_of_total,units
+C04,Staples & Grains,Food,98677244.71,18.87,122158.0
+C09,Baby Care,Non-Food,88746237.02,16.97,116031.0
+C05,Edible Oils,Food,82736636.78,15.82,114006.0
+C02,Dairy,Fresh,39696588.61,7.59,124030.0
+C07,Personal Care,Non-Food,37437446.74,7.16,94825.0
+C10,Frozen & Ready to Eat,Fresh,29765097.34,5.69,117045.0
+C08,Home Care,Non-Food,28253823.0,5.4,95868.0
+C03,Beverages,Food,25805866.86,4.94,103353.0
+C14,Stationery & General,Non-Food,25749321.35,4.92,113068.0
+C06,Spices & Masala,Food,18408992.48,3.52,104390.0
+C13,Confectionery,Food,17251020.23,3.3,108536.0
+C12,Fruits & Vegetables,Fresh,15314853.8,2.93,112527.0
+C11,Bakery,Fresh,12957549.04,2.48,121844.0
+C01,Biscuits & Snacks,Food,7335274.17,1.4,110002.0
+C00,Bill-level discount,Unallocated,-5270216.38,-1.01,117.0

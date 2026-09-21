@@ -1,0 +1,13 @@
+store_id,store_name,city,region,revenue,bills,avg_bill,revenue_per_sqft
+S03,Annapurna T Nagar,Chennai,South,61864894.46,80509.0,768.42,6798.34
+S10,Annapurna Rajouri Garden,New Delhi,North,59327041.98,77270.0,767.79,6741.71
+S01,Annapurna Jayanagar,Bengaluru,South,56995199.14,73725.0,773.08,6950.63
+S06,Annapurna Andheri West,Mumbai,West,52584302.7,68018.0,773.09,7203.33
+S02,Annapurna Koramangala,Bengaluru,South,47194947.02,60480.0,780.34,7374.21
+S12,Annapurna Salt Lake,Kolkata,East,44433598.82,57655.0,770.68,7284.2
+S04,Annapurna Kukatpally,Hyderabad,South,40201258.53,52332.0,768.2,6931.25
+S07,Annapurna Baner,Pune,West,35219585.45,45391.0,775.92,6905.8
+S08,Annapurna Satellite,Ahmedabad,West,34477161.43,44855.0,768.64,7335.57
+S11,Annapurna Gomti Nagar,Lucknow,North,32429712.91,41723.0,777.26,7370.39
+S05,Annapurna Kochi Marine,Kochi,South,30159037.54,38745.0,778.4,7180.72
+S09,Annapurna Vaishali,Jaipur,North,27978995.77,36118.0,774.66,7174.1

@@ -1,0 +1,175 @@
+==============================================================================
+(f) RECONCILIATION against finance_monthly.csv
+==============================================================================
+------------------------------------------------------------------------------
+step 1 -- rule out a bug in the pipeline
+------------------------------------------------------------------------------
+
+Revenue is computed twice, from row sets that do not overlap:
+
+  A. from the item lines      sum(qty*unit_price) over SALE, RETURN, DISCOUNT, VOID
+  B. from the bill totals     sum(TENDER) - sum(TAX)
+
+B never looks at an item line.  If A and B agree, the line rules are sound.
+
+  month  from_item_lines  from_bill_totals  difference
+2024-01      38446071.33       38446071.33         0.0
+2024-02      34887085.55       34887085.55        -0.0
+2024-03      41971649.09       41971649.09         0.0
+2024-04      37958457.37       37958457.37         0.0
+2024-05      41764716.40       41764716.40         0.0
+2024-06      38987082.82       38987082.82         0.0
+2024-07      40295160.11       40295160.11         0.0
+2024-08      45252181.75       45252181.75         0.0
+2024-09      44615037.46       44615037.46         0.0
+2024-10      56359195.92       56359195.92        -0.0
+2024-11      51583838.47       51583838.47        -0.0
+2024-12      50745259.48       50745259.48        -0.0
+
+  largest disagreement between the two reconstructions: 0.0000
+  -> the line-handling rules are not the cause of anything below.
+
+  Internal consistency, checked per bill rather than per month:
+     bills  balancing
+    165704     165704
+    -> every bill's own total agrees with its own lines.  A bill with a
+       line missing, duplicated or mis-signed would fail this.
+
+     store_days_with_a_gap_in_the_bill_sequence
+                                              0
+    -> bill numbers run 1..N per store-day with no holes, so no whole
+       bill is missing from any day that arrived.
+------------------------------------------------------------------------------
+step 2 -- the comparison
+------------------------------------------------------------------------------
+  month     finance    platform  difference     pct
+2024-01 38446071.33 38446071.33        0.00  0.0000
+2024-02 34887085.55 34887085.55       -0.00 -0.0000
+2024-03 42457899.09 41971649.09  -486250.00 -1.1453
+2024-04 37958457.37 37958457.37        0.00  0.0000
+2024-05 41764716.40 41764716.40        0.00  0.0000
+2024-06 38987082.82 38987082.82        0.00  0.0000
+2024-07 40527291.81 40295160.11  -232131.70 -0.5728
+2024-08 45252181.75 45252181.75        0.00  0.0000
+2024-09 44615037.46 44615037.46        0.00  0.0000
+2024-10 56359195.92 56359195.92       -0.00 -0.0000
+2024-11 51583838.47 51583838.47       -0.00 -0.0000
+2024-12 50745209.00 50745259.48       50.48  0.0001
+
+  months agreeing to the paisa: 9 of 12
+  Nine exact matches is itself a finding: finance and this platform
+  define revenue the same way -- excluding GST, excluding the TENDER
+  bill-total rows, netting returns, discounts and cancelled bills.
+  So the three differences are events, not a disagreement about meaning.
+------------------------------------------------------------------------------
+step 3 -- completeness of the source
+------------------------------------------------------------------------------
+  month  store_days_present  expected  missing
+2024-01                 372       372        0
+2024-02                 348       348        0
+2024-03                 372       372        0
+2024-04                 360       360        0
+2024-05                 372       372        0
+2024-06                 360       360        0
+2024-07                 369       372        3
+2024-08                 372       372        0
+2024-09                 360       360        0
+2024-10                 372       372        0
+2024-11                 360       360        0
+2024-12                 372       372        0
+
+  store-days that never arrived:
+    store_id missing_date day_of_week
+         S07   2024-07-09     Tuesday
+         S07   2024-07-10   Wednesday
+         S07   2024-07-11    Thursday
+------------------------------------------------------------------------------
+step 4 -- a verdict for each month that differs
+------------------------------------------------------------------------------
+
+2024-03   platform is 486,250.00 BELOW finance  (-1.15%)
+   what was checked:
+     - all 372 store-days present, no gap in any bill sequence
+     - both reconstructions of March agree to 0.00
+     - the shortfall is exactly 486,250.00, round to the rupee,
+       in a month whose other figures carry real paise
+     - no bill and no store-day in March is worth that amount:
+        bills_of_that_value  store_days_of_that_value
+                          0                         0
+   verdict: DEFINITION / SCOPE.  The amount is not in the till data in any
+     form, and the till data for March is internally complete and
+     self-consistent.  Something finance counted in March never passed
+     through a till -- a manual adjustment, an accrual, or a channel that
+     does not bill through the POS.  A perfectly round figure is what a
+     journal entry looks like, not what 60,000 shopping baskets look like.
+
+2024-07   platform is 232,131.70 BELOW finance  (-0.57%)
+   what was checked:
+     - three store-days never arrived: S07 (Pune), 9/10/11 July, Tue-Thu
+       -- exactly the outage billing_notes.md records
+     - valuing those three days on S07's own Tuesday/Wednesday/Thursday
+       averages for July gives 222,193.07 against a gap of 232,131.70
+     - residual -9,938.63 (-4.3%), which is within the
+       day-to-day spread of a single store
+   verdict: SOURCE DATA.  The exports do not exist and never will.  Finance
+     has the numbers because the store phoned them in.
+
+2024-12   platform is 50.48 ABOVE finance  (+0.00010%)
+   what was checked:
+     - all 372 store-days present, no gap in any bill sequence
+     - both reconstructions of December agree to 0.00
+     - the paise on each finance figure:
+         month  revenue_inr  paise
+       2024-01  38446071.33     33
+       2024-02  34887085.55     55
+       2024-03  42457899.09      9
+       2024-04  37958457.37     37
+       2024-05  41764716.40     40
+       2024-06  38987082.82     82
+       2024-07  40527291.81     81
+       2024-08  45252181.75     75
+       2024-09  44615037.46     46
+       2024-10  56359195.92     92
+       2024-11  51583838.47     47
+       2024-12  50745209.00      0
+     - December is the ONLY month finance closed on a whole rupee
+   verdict: not worth calling a cause.  0.0001% -- one part in a million --
+     on the one month whose signed-off figure ends in .00 while the other
+     eleven carry real paise.  That is a hand-keyed or rounded close, not a
+     data problem and not a pipeline problem.  The platform's figure is the
+     supportable one; it should be noted, not escalated.
+==============================================================================
+step 5 -- which of the three goes back to the finance team
+==============================================================================
+
+Of the three causes, the one to take to finance is the DEFINITION difference:
+March 2024.
+
+  Why that one.  It is the only difference that is about what revenue MEANS,
+  and it is the only one that will recur silently.  486,250.00 is 1.15% of the
+  month.  If finance books adjustments outside the POS, the platform can never
+  derive them and the dashboard will sit permanently below the closed books --
+  and nobody will know which of the two numbers is wrong.  The ask is narrow:
+  what is the 486,250.00 in March, and is it a standing practice?  Then it
+  becomes a documented adjustment line in the model, and the two agree by
+  construction instead of by luck.
+
+  Why not the other two.
+
+  July is a SOURCE problem and it is not finance's to solve.  It belongs to
+  the billing vendor and the ops desk: three exports were never produced.
+  What is needed FROM finance is only the phoned-in figures for those three
+  days, so the gap can be booked as a named adjustment rather than left as an
+  unexplained 232,131.70.  The fix is a process one -- an arrival check that
+  notices a missing store-day the next morning instead of eight months later.
+
+  December is not a cause at all.  Fifty rupees on fifty million, on the one
+  month closed to a whole rupee.  Raising it would spend the credibility that
+  the other two need.
+
+  And the fourth possibility, a bug in this pipeline, is the one that was
+  ruled out first rather than last: the two independent reconstructions agree
+  to 0.00 in all twelve months, every one of 165,704 bills balances against
+  its own lines, and nine months land on finance's signed-off figure exactly.
+
+written -> results/f_reconciliation.csv, f_reconciliation.json

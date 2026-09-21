@@ -1,0 +1,444 @@
+{
+    "cumulative_cardinality": 276744,
+    "attach_load_storage_latency": 0.0,
+    "attach_replay_wal_latency": 0.0,
+    "blocked_thread_time": 0.0,
+    "checkpoint_latency": 0.0,
+    "cumulative_rows_scanned": 1218542,
+    "commit_local_storage_latency": 0.0,
+    "cpu_time": 0.31447639999999993,
+    "extra_info": {},
+    "latency": 0.1435074,
+    "query_name": "-- ===========================================================================\n-- (e)  ONE QUERY ACROSS BOTH SYSTEMS\n--\n-- The sale lines live in the object store as Parquet.  The stores, products\n-- and categories live in PostgreSQL.  Neither is staged into the other: this\n-- reads both where they already are, in a single statement.\n--\n--   read_parquet('s3://annapurna-lake/...')   -> MinIO, over httpfs\n--   pg.stores / pg.products / pg.product_categories\n--                                             -> PostgreSQL, over postgres_scanner\n--\n-- The question: for October 2024, in the South and West regions, how did the\n-- Food department sell by region and category -- and what does that come to\n-- per square foot of shop floor.  Store attributes (region, floor area) only\n-- exist in PostgreSQL; the sale lines only exist in the object store.  There\n-- is no way to answer it inside either system alone.\n-- ===========================================================================\nSELECT\n    s.region,\n    c.category_name,\n    count(DISTINCT s.store_id)                       AS stores,\n    count(*)                                         AS sale_lines,\n    round(sum(l.qty * l.unit_price), 2)              AS revenue,\n    round(sum(l.qty * l.unit_price)\n          / max(t.total_sqft), 2)                    AS revenue_per_sqft\nFROM read_parquet('s3://annapurna-lake/raw/sales/**/*.parquet', hive_partitioning=1) l\nJOIN pg.stores              s ON s.store_id = l.store_id\nJOIN pg.products            p ON p.product_code = l.raw_code\n                             AND l.business_date BETWEEN p.valid_from AND p.valid_to\nJOIN pg.product_categories  c ON c.category_id = p.category_id\nJOIN (SELECT region, sum(floor_area_sqft) AS total_sqft\n      FROM pg.stores GROUP BY region)  t ON t.region = s.region\nWHERE l.business_month = '2024-10'\n  AND l.line_type IN ('SALE','RETURN','VOID')\n  AND s.region IN ('South','West')\n  AND c.department = 'Food'\nGROUP BY s.region, c.category_name\nORDER BY s.region, revenue DESC;\n",
+    "result_set_size": 768,
+    "rows_returned": 12,
+    "system_peak_buffer_memory": 92164800,
+    "system_peak_temp_dir_size": 0,
+    "total_bytes_read": 582432,
+    "total_bytes_written": 0,
+    "total_memory_allocated": 99614720,
+    "waiting_to_attach_latency": 0.0,
+    "wal_replay_entry_count": 0,
+    "write_to_wal_latency": 0.0,
+    "children": [
+        {
+            "cumulative_cardinality": 276744,
+            "cumulative_rows_scanned": 1218542,
+            "cpu_time": 0.31446529999999995,
+            "extra_info": {
+                "Order By": [
+                    "s.region ASC",
+                    "round(sum((l.qty * l.unit_price)), 2) DESC"
+                ]
+            },
+            "operator_cardinality": 12,
+            "operator_name": "ORDER_BY",
+            "operator_rows_scanned": 0,
+            "operator_timing": 0.0037888000000000006,
+            "operator_type": "ORDER_BY",
+            "result_set_size": 768,
+            "system_peak_buffer_memory": 0,
+            "system_peak_temp_dir_size": 0,
+            "children": [
+                {
+                    "cumulative_cardinality": 276732,
+                    "cumulative_rows_scanned": 1218542,
+                    "cpu_time": 0.31067649999999997,
+                    "extra_info": {
+                        "Projections": [
+                            "region",
+                            "category_name",
+                            "stores",
+                            "sale_lines",
+                            "revenue",
+                            "revenue_per_sqft"
+                        ],
+                        "Estimated Cardinality": "5185"
+                    },
+                    "operator_cardinality": 12,
+                    "operator_name": "PROJECTION",
+                    "operator_rows_scanned": 0,
+                    "operator_timing": 0.000048,
+                    "operator_type": "PROJECTION",
+                    "result_set_size": 768,
+                    "system_peak_buffer_memory": 0,
+                    "system_peak_temp_dir_size": 0,
+                    "children": [
+                        {
+                            "cumulative_cardinality": 276720,
+                            "cumulative_rows_scanned": 1218542,
+                            "cpu_time": 0.3106285,
+                            "extra_info": {
+                                "Groups": [
+                                    "#0",
+                                    "#1"
+                                ],
+                                "Aggregates": [
+                                    "count(DISTINCT #2)",
+                                    "count_star()",
+                                    "sum(#3)",
+                                    "max(#4)"
+                                ],
+                                "Estimated Cardinality": "5185"
+                            },
+                            "operator_cardinality": 12,
+                            "operator_name": "HASH_GROUP_BY",
+                            "operator_rows_scanned": 0,
+                            "operator_timing": 0.0205828,
+                            "operator_type": "HASH_GROUP_BY",
+                            "result_set_size": 864,
+                            "system_peak_buffer_memory": 0,
+                            "system_peak_temp_dir_size": 0,
+                            "children": [
+                                {
+                                    "cumulative_cardinality": 276708,
+                                    "cumulative_rows_scanned": 1218542,
+                                    "cpu_time": 0.29004569999999996,
+                                    "extra_info": {
+                                        "Projections": [
+                                            "region",
+                                            "category_name",
+                                            "store_id",
+                                            "(qty * unit_price)",
+                                            "total_sqft"
+                                        ],
+                                        "Estimated Cardinality": "5186"
+                                    },
+                                    "operator_cardinality": 24215,
+                                    "operator_name": "PROJECTION",
+                                    "operator_rows_scanned": 0,
+                                    "operator_timing": 0.00027360000000000004,
+                                    "operator_type": "PROJECTION",
+                                    "result_set_size": 1743480,
+                                    "system_peak_buffer_memory": 0,
+                                    "system_peak_temp_dir_size": 0,
+                                    "children": [
+                                        {
+                                            "cumulative_cardinality": 252493,
+                                            "cumulative_rows_scanned": 1218542,
+                                            "cpu_time": 0.2897721,
+                                            "extra_info": {
+                                                "Join Type": "INNER",
+                                                "Conditions": [
+                                                    "raw_code = product_code",
+                                                    "business_date >= valid_from",
+                                                    "business_date <= valid_to"
+                                                ],
+                                                "Estimated Cardinality": "5186"
+                                            },
+                                            "operator_cardinality": 24215,
+                                            "operator_name": "HASH_JOIN",
+                                            "operator_rows_scanned": 0,
+                                            "operator_timing": 0.0047482,
+                                            "operator_type": "HASH_JOIN",
+                                            "result_set_size": 1937200,
+                                            "system_peak_buffer_memory": 0,
+                                            "system_peak_temp_dir_size": 0,
+                                            "children": [
+                                                {
+                                                    "cumulative_cardinality": 226528,
+                                                    "cumulative_rows_scanned": 1217130,
+                                                    "cpu_time": 0.2848394,
+                                                    "extra_info": {
+                                                        "Join Type": "INNER",
+                                                        "Conditions": "store_id = store_id",
+                                                        "Estimated Cardinality": "2448"
+                                                    },
+                                                    "operator_cardinality": 56619,
+                                                    "operator_name": "HASH_JOIN",
+                                                    "operator_rows_scanned": 0,
+                                                    "operator_timing": 0.0029827000000000005,
+                                                    "operator_type": "HASH_JOIN",
+                                                    "result_set_size": 4755996,
+                                                    "system_peak_buffer_memory": 0,
+                                                    "system_peak_temp_dir_size": 0,
+                                                    "children": [
+                                                        {
+                                                            "cumulative_cardinality": 169857,
+                                                            "cumulative_rows_scanned": 1216944,
+                                                            "cpu_time": 0.2812323,
+                                                            "extra_info": {
+                                                                "Projections": [
+                                                                    "#0",
+                                                                    "#1",
+                                                                    "#2",
+                                                                    "#4",
+                                                                    "#5"
+                                                                ],
+                                                                "Estimated Cardinality": "20282"
+                                                            },
+                                                            "operator_cardinality": 56619,
+                                                            "operator_name": "PROJECTION",
+                                                            "operator_rows_scanned": 0,
+                                                            "operator_timing": 0.0000481,
+                                                            "operator_type": "PROJECTION",
+                                                            "result_set_size": 2944188,
+                                                            "system_peak_buffer_memory": 0,
+                                                            "system_peak_temp_dir_size": 0,
+                                                            "children": [
+                                                                {
+                                                                    "cumulative_cardinality": 113238,
+                                                                    "cumulative_rows_scanned": 1216944,
+                                                                    "cpu_time": 0.2811842,
+                                                                    "extra_info": {
+                                                                        "Expression": "((line_type = 'SALE') OR (line_type = 'RETURN') OR (line_type = 'VOID'))",
+                                                                        "Estimated Cardinality": "20282"
+                                                                    },
+                                                                    "operator_cardinality": 56619,
+                                                                    "operator_name": "FILTER",
+                                                                    "operator_rows_scanned": 0,
+                                                                    "operator_timing": 0.0023673,
+                                                                    "operator_type": "FILTER",
+                                                                    "result_set_size": 3850092,
+                                                                    "system_peak_buffer_memory": 0,
+                                                                    "system_peak_temp_dir_size": 0,
+                                                                    "children": [
+                                                                        {
+                                                                            "cumulative_cardinality": 56619,
+                                                                            "cumulative_rows_scanned": 1216944,
+                                                                            "cpu_time": 0.2788169,
+                                                                            "extra_info": {
+                                                                                "Function": "READ_PARQUET",
+                                                                                "Projections": [
+                                                                                    "store_id",
+                                                                                    "raw_code",
+                                                                                    "business_date",
+                                                                                    "line_type",
+                                                                                    "qty",
+                                                                                    "unit_price"
+                                                                                ],
+                                                                                "Filters": "optional: line_type IN ('SALE', 'RETURN', 'VOID')",
+                                                                                "File Filters": "(business_month = '2024-10')",
+                                                                                "Scanning Files": "12/12",
+                                                                                "Estimated Cardinality": "101412",
+                                                                                "Dynamic Filters": [
+                                                                                    "optional: store_id IN ('S05', 'S06', 'S03', 'S01', 'S04', 'S07', 'S02', 'S08') AND optional: store_id>='S01' AND optional: store_id<='S08' AND optional: store_id IN BF(store_id)",
+                                                                                    "optional: raw_code>='P100005' AND optional: raw_code<='P108389'",
+                                                                                    "optional: business_date>='2019-04-01'::DATE AND optional: business_date<='9999-12-31'::DATE"
+                                                                                ],
+                                                                                "Total Files Read": "8",
+                                                                                "Filename(s)": "s3://annapurna-lake/raw/sales/store_id=S01/business_month=2024-10/part-0.parquet, s3://annapurna-lake/raw/sales/store_id=S02/business_month=2024-10/part-0.parquet, s3://annapurna-lake/raw/sales/store_id=S03/business_month=2024-10/part-0.parquet, s3://annapurna-lake/raw/sales/store_id=S04/business_month=2024-10/part-0.parquet, s3://annapurna-lake/raw/sales/store_id=S05/business_month=2024-10/part-0.parquet, ..."
+                                                                            },
+                                                                            "operator_cardinality": 56619,
+                                                                            "operator_name": "READ_PARQUET",
+                                                                            "operator_rows_scanned": 1216944,
+                                                                            "operator_timing": 0.2788169,
+                                                                            "operator_type": "TABLE_SCAN",
+                                                                            "result_set_size": 3850092,
+                                                                            "system_peak_buffer_memory": 0,
+                                                                            "system_peak_temp_dir_size": 0,
+                                                                            "children": []
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "cumulative_cardinality": 52,
+                                                            "cumulative_rows_scanned": 186,
+                                                            "cpu_time": 0.0006244,
+                                                            "extra_info": {
+                                                                "Join Type": "INNER",
+                                                                "Conditions": "region = region",
+                                                                "Estimated Cardinality": "11"
+                                                            },
+                                                            "operator_cardinality": 8,
+                                                            "operator_name": "HASH_JOIN",
+                                                            "operator_rows_scanned": 0,
+                                                            "operator_timing": 0.00012380000000000003,
+                                                            "operator_type": "HASH_JOIN",
+                                                            "result_set_size": 384,
+                                                            "system_peak_buffer_memory": 0,
+                                                            "system_peak_temp_dir_size": 0,
+                                                            "children": [
+                                                                {
+                                                                    "cumulative_cardinality": 28,
+                                                                    "cumulative_rows_scanned": 93,
+                                                                    "cpu_time": 0.00048279999999999997,
+                                                                    "extra_info": {
+                                                                        "Groups": "#0",
+                                                                        "Aggregates": "sum(#1)",
+                                                                        "Estimated Cardinality": "58"
+                                                                    },
+                                                                    "operator_cardinality": 4,
+                                                                    "operator_name": "HASH_GROUP_BY",
+                                                                    "operator_rows_scanned": 0,
+                                                                    "operator_timing": 0.000479,
+                                                                    "operator_type": "HASH_GROUP_BY",
+                                                                    "result_set_size": 128,
+                                                                    "system_peak_buffer_memory": 0,
+                                                                    "system_peak_temp_dir_size": 0,
+                                                                    "children": [
+                                                                        {
+                                                                            "cumulative_cardinality": 24,
+                                                                            "cumulative_rows_scanned": 93,
+                                                                            "cpu_time": 0.0000038,
+                                                                            "extra_info": {
+                                                                                "Projections": [
+                                                                                    "region",
+                                                                                    "floor_area_sqft"
+                                                                                ],
+                                                                                "Estimated Cardinality": "93"
+                                                                            },
+                                                                            "operator_cardinality": 12,
+                                                                            "operator_name": "PROJECTION",
+                                                                            "operator_rows_scanned": 0,
+                                                                            "operator_timing": 0.0000011,
+                                                                            "operator_type": "PROJECTION",
+                                                                            "result_set_size": 240,
+                                                                            "system_peak_buffer_memory": 0,
+                                                                            "system_peak_temp_dir_size": 0,
+                                                                            "children": [
+                                                                                {
+                                                                                    "cumulative_cardinality": 12,
+                                                                                    "cumulative_rows_scanned": 93,
+                                                                                    "cpu_time": 0.0000027,
+                                                                                    "extra_info": {
+                                                                                        "Table": "stores",
+                                                                                        "Projections": [
+                                                                                            "region",
+                                                                                            "floor_area_sqft"
+                                                                                        ],
+                                                                                        "Estimated Cardinality": "93"
+                                                                                    },
+                                                                                    "operator_cardinality": 12,
+                                                                                    "operator_name": "POSTGRES_SCAN",
+                                                                                    "operator_rows_scanned": 93,
+                                                                                    "operator_timing": 0.0000027,
+                                                                                    "operator_type": "TABLE_SCAN",
+                                                                                    "result_set_size": 240,
+                                                                                    "system_peak_buffer_memory": 0,
+                                                                                    "system_peak_temp_dir_size": 0,
+                                                                                    "children": []
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "cumulative_cardinality": 16,
+                                                                    "cumulative_rows_scanned": 93,
+                                                                    "cpu_time": 0.0000178,
+                                                                    "extra_info": {
+                                                                        "Expression": "((region = 'South') OR (region = 'West'))",
+                                                                        "Estimated Cardinality": "18"
+                                                                    },
+                                                                    "operator_cardinality": 8,
+                                                                    "operator_name": "FILTER",
+                                                                    "operator_rows_scanned": 0,
+                                                                    "operator_timing": 0.0000157,
+                                                                    "operator_type": "FILTER",
+                                                                    "result_set_size": 256,
+                                                                    "system_peak_buffer_memory": 0,
+                                                                    "system_peak_temp_dir_size": 0,
+                                                                    "children": [
+                                                                        {
+                                                                            "cumulative_cardinality": 8,
+                                                                            "cumulative_rows_scanned": 93,
+                                                                            "cpu_time": 0.0000021000000000000002,
+                                                                            "extra_info": {
+                                                                                "Table": "stores",
+                                                                                "Projections": [
+                                                                                    "store_id",
+                                                                                    "region"
+                                                                                ],
+                                                                                "Filters": "optional: region IN ('South', 'West')",
+                                                                                "Estimated Cardinality": "93"
+                                                                            },
+                                                                            "operator_cardinality": 8,
+                                                                            "operator_name": "POSTGRES_SCAN",
+                                                                            "operator_rows_scanned": 93,
+                                                                            "operator_timing": 0.0000021000000000000002,
+                                                                            "operator_type": "TABLE_SCAN",
+                                                                            "result_set_size": 256,
+                                                                            "system_peak_buffer_memory": 0,
+                                                                            "system_peak_temp_dir_size": 0,
+                                                                            "children": []
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "cumulative_cardinality": 1750,
+                                                    "cumulative_rows_scanned": 1412,
+                                                    "cpu_time": 0.0001845,
+                                                    "extra_info": {
+                                                        "Join Type": "INNER",
+                                                        "Conditions": "category_id = category_id",
+                                                        "Estimated Cardinality": "247"
+                                                    },
+                                                    "operator_cardinality": 520,
+                                                    "operator_name": "HASH_JOIN",
+                                                    "operator_rows_scanned": 0,
+                                                    "operator_timing": 0.0001799,
+                                                    "operator_type": "HASH_JOIN",
+                                                    "result_set_size": 20800,
+                                                    "system_peak_buffer_memory": 0,
+                                                    "system_peak_temp_dir_size": 0,
+                                                    "children": [
+                                                        {
+                                                            "cumulative_cardinality": 1224,
+                                                            "cumulative_rows_scanned": 1264,
+                                                            "cpu_time": 0.000002,
+                                                            "extra_info": {
+                                                                "Table": "products",
+                                                                "Projections": [
+                                                                    "product_code",
+                                                                    "valid_from",
+                                                                    "valid_to",
+                                                                    "category_id"
+                                                                ],
+                                                                "Estimated Cardinality": "1264",
+                                                                "Dynamic Filters": "optional: category_id IN ('C13', 'C04', 'C06', 'C03', 'C01', 'C05') AND optional: category_id>='C01' AND optional: category_id<='C13' AND optional: category_id IN BF(category_id)"
+                                                            },
+                                                            "operator_cardinality": 1224,
+                                                            "operator_name": "POSTGRES_SCAN",
+                                                            "operator_rows_scanned": 1264,
+                                                            "operator_timing": 0.000002,
+                                                            "operator_type": "TABLE_SCAN",
+                                                            "result_set_size": 48960,
+                                                            "system_peak_buffer_memory": 0,
+                                                            "system_peak_temp_dir_size": 0,
+                                                            "children": []
+                                                        },
+                                                        {
+                                                            "cumulative_cardinality": 6,
+                                                            "cumulative_rows_scanned": 148,
+                                                            "cpu_time": 0.0000026,
+                                                            "extra_info": {
+                                                                "Table": "product_categories",
+                                                                "Projections": [
+                                                                    "category_id",
+                                                                    "department",
+                                                                    "category_name"
+                                                                ],
+                                                                "Filters": "department='Food'",
+                                                                "Estimated Cardinality": "29"
+                                                            },
+                                                            "operator_cardinality": 6,
+                                                            "operator_name": "POSTGRES_SCAN",
+                                                            "operator_rows_scanned": 148,
+                                                            "operator_timing": 0.0000026,
+                                                            "operator_type": "TABLE_SCAN",
+                                                            "result_set_size": 288,
+                                                            "system_peak_buffer_memory": 0,
+                                                            "system_peak_temp_dir_size": 0,
+                                                            "children": []
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

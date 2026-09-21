@@ -1,0 +1,16 @@
+{
+  "resent_store_days": 54,
+  "files_involved": 122,
+  "rows_across_files": 30932,
+  "distinct_keys": 14271,
+  "partial_resends": 8,
+  "conflicting_keys": 0,
+  "lines_only_in_resend": 0,
+  "lines_only_in_original": 1282,
+  "revenue_by_rule": {
+    "A": 14638905.11,
+    "B": 6142450.78,
+    "C": 6715362.99,
+    "D": 6715362.99
+  }
+}

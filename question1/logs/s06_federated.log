@@ -1,0 +1,442 @@
+==============================================================================
+(e) ONE QUERY, TWO SYSTEMS, NO COPYING
+==============================================================================
+-- ===========================================================================
+-- (e)  ONE QUERY ACROSS BOTH SYSTEMS
+--
+-- The sale lines live in the object store as Parquet.  The stores, products
+-- and categories live in PostgreSQL.  Neither is staged into the other: this
+-- reads both where they already are, in a single statement.
+--
+--   read_parquet('s3://annapurna-lake/...')   -> MinIO, over httpfs
+--   pg.stores / pg.products / pg.product_categories
+--                                             -> PostgreSQL, over postgres_scanner
+--
+-- The question: for October 2024, in the South and West regions, how did the
+-- Food department sell by region and category -- and what does that come to
+-- per square foot of shop floor.  Store attributes (region, floor area) only
+-- exist in PostgreSQL; the sale lines only exist in the object store.  There
+-- is no way to answer it inside either system alone.
+-- ===========================================================================
+SELECT
+    s.region,
+    c.category_name,
+    count(DISTINCT s.store_id)                       AS stores,
+    count(*)                                         AS sale_lines,
+    round(sum(l.qty * l.unit_price), 2)              AS revenue,
+    round(sum(l.qty * l.unit_price)
+          / max(t.total_sqft), 2)                    AS revenue_per_sqft
+FROM read_parquet('s3://annapurna-lake/raw/sales/**/*.parquet', hive_partitioning=1) l
+JOIN pg.stores              s ON s.store_id = l.store_id
+JOIN pg.products            p ON p.product_code = l.raw_code
+                             AND l.business_date BETWEEN p.valid_from AND p.valid_to
+JOIN pg.product_categories  c ON c.category_id = p.category_id
+JOIN (SELECT region, sum(floor_area_sqft) AS total_sqft
+      FROM pg.stores GROUP BY region)  t ON t.region = s.region
+WHERE l.business_month = '2024-10'
+  AND l.line_type IN ('SALE','RETURN','VOID')
+  AND s.region IN ('South','West')
+  AND c.department = 'Food'
+GROUP BY s.region, c.category_name
+ORDER BY s.region, revenue DESC;
+
+
+where each relation physically lives, as the engine sees it:
+catalog schema_name         table_name
+     pg      public    price_revisions
+     pg      public product_categories
+     pg      public           products
+     pg      public             stores
+  The sale lines appear in the FROM clause as read_parquet('s3://...').
+  They have no entry in either catalogue, because they were never loaded
+  into one.
+
+------------------------------------------------------------------------------
+the answer
+------------------------------------------------------------------------------
+region     category_name  stores  sale_lines    revenue  revenue_per_sqft
+ South  Staples & Grains       5        2922 4940102.53            146.59
+ South       Edible Oils       5        2718 4060432.88            120.49
+ South         Beverages       5        2433 1239968.65             36.79
+ South     Confectionery       5        2636  869439.79             25.80
+ South   Spices & Masala       5        2451  865024.47             25.67
+ South Biscuits & Snacks       5        2758  381165.83             11.31
+  West  Staples & Grains       3        1514 2373386.42            138.79
+  West       Edible Oils       3        1420 2204025.35            128.89
+  West         Beverages       3        1257  664371.46             38.85
+  West   Spices & Masala       3        1300  458309.68             26.80
+  West     Confectionery       3        1355  435803.39             25.49
+  West Biscuits & Snacks       3        1451  199692.30             11.68
+------------------------------------------------------------------------------
+instrumented runs (each witness watches exactly one execution)
+------------------------------------------------------------------------------
+  run A -- settling MinIO's counters before ...
+  run A -- settling MinIO's counters after ...
+
+  cold run: 134 ms     warm run: 148 ms
+------------------------------------------------------------------------------
+witness 1 -- DuckDB's own profile
+------------------------------------------------------------------------------
+┌─────────────────────────────────────┐
+│┌───────────────────────────────────┐│
+││    Query Profiling Information    ││
+│└───────────────────────────────────┘│
+└─────────────────────────────────────┘
+EXPLAIN ANALYZE -- =========================================================================== -- (e)  ONE QUERY ACROSS BOTH SYSTEMS -- -- The sale lines live in the object store as Parquet.  The stores, products -- and categories live in PostgreSQL.  Neither is staged into the other: this -- reads both where they already are, in a single statement. -- --   read_parquet('s3://annapurna-lake/...')   -> MinIO, over httpfs --   pg.stores / pg.products / pg.product_categories --                                             -> PostgreSQL, over postgres_scanner -- -- The question: for October 2024, in the South and West regions, how did the -- Food department sell by region and category -- and what does that come to -- per square foot of shop floor.  Store attributes (region, floor area) only -- exist in PostgreSQL; the sale lines only exist in the object store.  There -- is no way to answer it inside either system alone. -- =========================================================================== SELECT     s.region,     c.category_name,     count(DISTINCT s.store_id)                       AS stores,     count(*)                                         AS sale_lines,     round(sum(l.qty * l.unit_price), 2)              AS revenue,     round(sum(l.qty * l.unit_price)           / max(t.total_sqft), 2)                    AS revenue_per_sqft FROM read_parquet('s3://annapurna-lake/raw/sales/**/*.parquet', hive_partitioning=1) l JOIN pg.stores              s ON s.store_id = l.store_id JOIN pg.products            p ON p.product_code = l.raw_code                              AND l.business_date BETWEEN p.valid_from AND p.valid_to JOIN pg.product_categories  c ON c.category_id = p.category_id JOIN (SELECT region, sum(floor_area_sqft) AS total_sqft       FROM pg.stores GROUP BY region)  t ON t.region = s.region WHERE l.business_month = '2024-10'   AND l.line_type IN ('SALE','RETURN','VOID')   AND s.region IN ('South','West')   AND c.department = 'Food' GROUP BY s.region, c.category_name ORDER BY s.region, revenue DESC; 
+┌─────────────────────────────────────┐
+│┌───────────────────────────────────┐│
+││         HTTPFS HTTP Stats         ││
+││                                   ││
+││           in: 605.4 KiB           ││
+││            out: 0 bytes           ││
+││              #HEAD: 0             ││
+││              #GET: 42             ││
+││              #PUT: 0              ││
+││              #POST: 0             ││
+││             #DELETE: 0            ││
+│└───────────────────────────────────┘│
+└─────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│┌──────────────────────────────────────────────┐│
+││              Total Time: 0.128s              ││
+│└──────────────────────────────────────────────┘│
+└────────────────────────────────────────────────┘
+┌───────────────────────────┐
+│           QUERY           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│      EXPLAIN_ANALYZE      │
+│    ────────────────────   │
+│                           │
+│           0 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│          ORDER_BY         │
+│    ────────────────────   │
+│        s.region ASC       │
+│    round(sum((l.qty * l   │
+│   .unit_price)), 2) DESC  │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         PROJECTION        │
+│    ────────────────────   │
+│           region          │
+│       category_name       │
+│           stores          │
+│         sale_lines        │
+│          revenue          │
+│      revenue_per_sqft     │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│       HASH_GROUP_BY       │
+│    ────────────────────   │
+│          Groups:          │
+│             #0            │
+│             #1            │
+│                           │
+│        Aggregates:        │
+│     count(DISTINCT #2)    │
+│        count_star()       │
+│          sum(#3)          │
+│          max(#4)          │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.03s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         PROJECTION        │
+│    ────────────────────   │
+│           region          │
+│       category_name       │
+│          store_id         │
+│     (qty * unit_price)    │
+│         total_sqft        │
+│                           │
+│                           │
+│                           │
+│        24,215 rows        │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         HASH_JOIN         │
+│    ────────────────────   │
+│      Join Type: INNER     │
+│                           │
+│        Conditions:        │
+│  raw_code = product_code  │
+│business_date >= valid_from├────────────────────────────────────────────────────────────────────────┐
+│ business_date <= valid_to │                                                                        │
+│                           │                                                                        │
+│                           │                                                                        │
+│                           │                                                                        │
+│        24,215 rows        │                                                                        │
+│           0.01s           │                                                                        │
+└─────────────┬─────────────┘                                                                        │
+┌─────────────┴─────────────┐                                                          ┌─────────────┴─────────────┐
+│         HASH_JOIN         │                                                          │         HASH_JOIN         │
+│    ────────────────────   │                                                          │    ────────────────────   │
+│      Join Type: INNER     │                                                          │      Join Type: INNER     │
+│                           │                                                          │                           │
+│        Conditions:        │                                                          │        Conditions:        │
+│    store_id = store_id    ├──────────────┐                                           │ category_id = category_id ├──────────────┐
+│                           │              │                                           │                           │              │
+│                           │              │                                           │                           │              │
+│                           │              │                                           │                           │              │
+│        56,619 rows        │              │                                           │          520 rows         │              │
+│           0.00s           │              │                                           │           0.00s           │              │
+└─────────────┬─────────────┘              │                                           └─────────────┬─────────────┘              │
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐                             ┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│         PROJECTION        ││         HASH_JOIN         │                             │         TABLE_SCAN        ││         TABLE_SCAN        │
+│    ────────────────────   ││    ────────────────────   │                             │    ────────────────────   ││    ────────────────────   │
+│             #0            ││      Join Type: INNER     │                             │      Table: products      ││           Table:          │
+│             #1            ││                           │                             │                           ││     product_categories    │
+│             #2            ││        Conditions:        │                             │        Projections:       ││                           │
+│             #4            ││      region = region      │                             │        product_code       ││        Projections:       │
+│             #5            ││                           │                             │         valid_from        ││        category_id        │
+│                           ││                           │                             │          valid_to         ││         department        │
+│                           ││                           │                             │        category_id        ││       category_name       │
+│                           ││                           │                             │                           ││                           │
+│                           ││           0.00s           │                             │      Dynamic Filters:     ││          Filters:         │
+│           0.00s           ││                           │                             │ optional: category_id IN (││     department='Food'     │
+│                           ││                           ├──────────────┐              │ 'C13', 'C04', 'C06', 'C03'││                           │
+│                           ││                           │              │              │    , 'C01', 'C05') AND    ││                           │
+│                           ││                           │              │              │   optional: category_id>= ││                           │
+│                           ││                           │              │              │    'C01' AND optional:    ││                           │
+│                           ││                           │              │              │   category_id<='C13' AND  ││           0.00s           │
+│                           ││                           │              │              │  optional: category_id IN ││                           │
+│                           ││                           │              │              │       BF(category_id)     ││                           │
+│                           ││                           │              │              │                           ││                           │
+│                           ││                           │              │              │                           ││                           │
+│                           ││                           │              │              │                           ││                           │
+│        56,619 rows        ││           8 rows          │              │              │         1,224 rows        ││           6 rows          │
+│          (0.00s)          ││          (0.00s)          │              │              │           0.00s           ││          (0.00s)          │
+└─────────────┬─────────────┘└─────────────┬─────────────┘              │              └───────────────────────────┘└───────────────────────────┘
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│           FILTER          ││       HASH_GROUP_BY       ││           FILTER          │
+│    ────────────────────   ││    ────────────────────   ││    ────────────────────   │
+│ ((line_type = 'SALE') OR  ││         Groups: #0        ││  ((region = 'South') OR   │
+│ (line_type = 'RETURN') OR ││    Aggregates: sum(#1)    ││     (region = 'West'))    │
+│   (line_type = 'VOID'))   ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│        56,619 rows        ││           0.00s           ││           0.00s           │
+│           0.00s           ││          (0.00s)          ││          (0.00s)          │
+└─────────────┬─────────────┘└─────────────┬─────────────┘└─────────────┬─────────────┘
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│         TABLE_SCAN        ││         PROJECTION        ││         TABLE_SCAN        │
+│    ────────────────────   ││    ────────────────────   ││    ────────────────────   │
+│         Function:         ││           region          ││       Table: stores       │
+│        READ_PARQUET       ││      floor_area_sqft      ││                           │
+│                           ││                           ││        Projections:       │
+│        Projections:       ││                           ││          store_id         │
+│          store_id         ││                           ││           region          │
+│          raw_code         ││                           ││                           │
+│       business_date       ││           0.00s           ││          Filters:         │
+│         line_type         ││                           ││   optional: region IN (   │
+│            qty            ││                           ││      'South', 'West')     │
+│         unit_price        ││                           ││                           │
+│                           ││                           ││                           │
+│          Filters:         ││                           ││                           │
+│  optional: line_type IN ( ││                           ││                           │
+│ 'SALE', 'RETURN', 'VOID') ││                           ││           0.00s           │
+│                           ││                           ││                           │
+│       File Filters:       ││                           ││                           │
+│ (business_month = '2024-10││                           ││                           │
+│             ')            ││                           ││                           │
+│                           ││                           ││                           │
+│   Scanning Files: 12/12   ││                           ││                           │
+│                           ││                           ││                           │
+│      Dynamic Filters:     ││                           ││                           │
+│  optional: store_id IN (  ││                           ││                           │
+│ 'S05', 'S06', 'S03', 'S01'││                           ││                           │
+│  , 'S04', 'S07', 'S08',   ││                           ││                           │
+│    'S02') AND optional:   ││                           ││                           │
+│     store_id>='S01' AND   ││                           ││                           │
+│  optional: store_id<='S08'││                           ││                           │
+│  AND optional: store_id IN││                           ││                           │
+│        BF(store_id)       ││                           ││                           │
+│    optional: raw_code>=   ││                           ││                           │
+│  'P100005' AND optional:  ││                           ││                           │
+│     raw_code<='P108389'   ││                           ││                           │
+│ optional: business_date>= ││                           ││                           │
+│   '2019-04-01'::DATE AND  ││                           ││                           │
+│  optional: business_date<=││                           ││                           │
+│     '9999-12-31'::DATE    ││                           ││                           │
+│                           ││                           ││                           │
+│    Total Files Read: 8    ││                           ││                           │
+│                           ││                           ││                           │
+│        Filename(s):       ││                           ││                           │
+│  s3://annapurna-lake/raw  ││                           ││                           │
+│    /sales/store_id=S01    ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S02       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S03       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S04       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S05       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│    /part-0.parquet, ...   ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│        56,619 rows        ││          12 rows          ││           8 rows          │
+│           0.21s           ││          (0.00s)          ││          (0.00s)          │
+└───────────────────────────┘└─────────────┬─────────────┘└───────────────────────────┘
+                             ┌─────────────┴─────────────┐
+                             │         TABLE_SCAN        │
+                             │    ────────────────────   │
+                             │       Table: stores       │
+                             │                           │
+                             │        Projections:       │
+                             │           region          │
+                             │      floor_area_sqft      │
+                             │                           │
+                             │                           │
+                             │                           │
+                             │          12 rows          │
+                             │           0.00s           │
+                             └───────────────────────────┘
+
+------------------------------------------------------------------------------
+witness 1, read back from the JSON profile
+------------------------------------------------------------------------------
+  POSTGRES_SCAN operators -- work handed to PostgreSQL:
+
+    table stores   returned 12 rows
+      projection sent down : ['region', 'floor_area_sqft']
+      filter sent down     : (none)
+
+    table stores   returned 8 rows
+      projection sent down : ['store_id', 'region']
+      filter sent down     : optional: region IN ('South', 'West')
+
+    table products   returned 1224 rows
+      projection sent down : ['product_code', 'valid_from', 'valid_to', 'category_id']
+      filter sent down     : (none)
+      dynamic filter       : optional: category_id IN ('C13', 'C04', 'C06', 'C03', 'C01', 'C05') AND optional: category_id>='C01'...
+
+    table product_categories   returned 6 rows
+      projection sent down : ['category_id', 'department', 'category_name']
+      filter sent down     : department='Food'
+
+  READ_PARQUET operator -- work served by the object store:
+
+      rows produced        : 56,619
+      files considered     : 12/12
+      files actually read  : 8
+      partition filter     : (business_month = '2024-10')
+      projection           : ['store_id', 'raw_code', 'business_date', 'line_type', 'qty', 'unit_price']
+      row filter           : optional: line_type IN ('SALE', 'RETURN', 'VOID')
+      dynamic filter       : optional: store_id IN ('S05', 'S06', 'S03', 'S01', 'S04', 'S07', 'S02', 'S08') AND optional: store_id>='
+      dynamic filter       : optional: raw_code>='P100005' AND optional: raw_code<='P108389'
+      dynamic filter       : optional: business_date>='2019-04-01'::DATE AND optional: business_date<='9999-12-31'::DATE
+
+  operators in the plan, by name:
+    PROJECTION                4
+    HASH_JOIN                 4
+    POSTGRES_SCAN             4
+    HASH_GROUP_BY             2
+    FILTER                    2
+    ORDER_BY                  1
+    READ_PARQUET              1
+
+  HTTPFS counters the engine kept for itself: {'bytes_in': '605.4 KiB', 'bytes_out': '0 bytes', 'GET': '42', 'PUT': '0', 'HEAD': '0', 'POST': '0', 'DELETE': '0'}
+  total_bytes_read reported by the profile   : 582,432
+
+  Read the READ_PARQUET box again.  It considered 12 partitions (the twelve
+  stores' October) and opened 8.  The four it skipped are the four stores that
+  are not in the South or West -- and 'region' is a column that exists only in
+  PostgreSQL.  A predicate that could only be evaluated in the relational
+  database came back as a dynamic filter and pruned files in the object store.
+  That is the two systems cooperating on one query, and it is visible in the
+  engine's own profile rather than in anybody's documentation.
+------------------------------------------------------------------------------
+witness 2 -- what PostgreSQL was actually asked to do
+------------------------------------------------------------------------------
+pg_stat_statements, on the PostgreSQL server:
+
+  calls=1   rows=1224    COPY (SELECT "product_code", "valid_from", "valid_to", "category_id" FROM "public"."products" WHERE ctid BETWEEN '(0,0)'::tid AND '(
+  calls=1   rows=12      COPY (SELECT "region", "floor_area_sqft" FROM "public"."stores" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid) TO STDOUT
+  calls=1   rows=8       COPY (SELECT "store_id", "region" FROM "public"."stores" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid AND "region" IN (
+  calls=1   rows=6       COPY (SELECT "category_id", "department", "category_name" FROM "public"."product_categories" WHERE ctid BETWEEN '(0,0)'::tid AND '(4
+
+the PostgreSQL server log (log_statement=all):
+
+  SELECT version(), (SELECT COUNT(*) FROM pg_settings WHERE name LIKE 'rds%')
+  SELECT 1
+  DISCARD ALL
+  SELECT to_regclass('duckdb_secrets')
+  BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+  COPY (SELECT "product_code", "valid_from", "valid_to", "category_id" FROM "public"."products" WHERE ctid BETWEEN '(0,0)'::tid AND '(
+  COPY (SELECT "category_id", "department", "category_name" FROM "public"."product_categories" WHERE ctid BETWEEN '(0,0)'::tid AND '(4
+  COPY (SELECT "store_id", "region" FROM "public"."stores" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid AND "region" IN (
+  COPY (SELECT "region", "floor_area_sqft" FROM "public"."stores" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid) TO STDOUT
+  COMMIT
+
+  rows PostgreSQL sent to DuckDB        : 1,250
+  rows in its three master tables       : 1,250
+  October sale lines the query covered  : 81,468
+
+  Every statement PostgreSQL ran is a single-table SELECT with the
+  projection cut to the columns the query needs, and two of them carry a
+  WHERE that came from the outer query -- region IN ('South','West') and
+  department = 'Food'.  There is no join, no GROUP BY and no sale line in
+  anything PostgreSQL was asked to do.
+------------------------------------------------------------------------------
+witness 3 -- what MinIO says it served
+------------------------------------------------------------------------------
+counter                     before         after       delta
+bytes_sent             116,665,539   117,285,564     620,025
+deleteobject                     2             2           0
+getobject                    7,021         7,062          41
+headobject                     121           121           0
+listbuckets                      2             2           0
+listobjectsv2                  511           512           1
+putobject                      583           583           0
+
+  GETs MinIO served during the run : 41
+  bytes MinIO sent                 : 620,025
+  PUTs MinIO accepted              : 0
+  -> nothing was written into the object store, so no part of
+     PostgreSQL was staged there for the join.
+==============================================================================
+VERDICT -- which part ran where, and how that is known
+==============================================================================
+
+  scanning and filtering stores, products, product_categories
+      ran in   : PostgreSQL
+      evidence : pg_stat_statements and the server log show single-table SELECTs with narrowed projections and the outer WHERE pushed in; 1,250 rows crossed the wire, all of them master data
+
+  reading the October sale lines, partition-pruned
+      ran in   : MinIO, scanned by DuckDB
+      evidence : the profile shows READ_PARQUET opening ['8'] of ['12/12'] candidate files; DuckDB's own HTTPFS counter reports 42 GET / 0 PUT (605.4 KiB in); MinIO independently counted 41 GETs and 0 PUTs
+
+  the as-of product join, the store join, GROUP BY, the arithmetic
+      ran in   : DuckDB
+      evidence : 4 HASH_JOIN and 2 GROUP BY operators appear only in the DuckDB profile; neither remote system was asked for any of it, and only DuckDB ever held both sides
+
+written -> results/e_federated.json, e_explain.txt, e_federated_result.csv

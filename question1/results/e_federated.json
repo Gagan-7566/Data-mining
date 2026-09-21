@@ -1,0 +1,154 @@
+{
+  "warm_ms": 148.3,
+  "cold_ms": 134.3,
+  "plan": {
+    "postgres_scans": [
+      {
+        "table": "stores",
+        "rows": 12,
+        "projections": [
+          "region",
+          "floor_area_sqft"
+        ],
+        "filters": null,
+        "dynamic_filters": null
+      },
+      {
+        "table": "stores",
+        "rows": 8,
+        "projections": [
+          "store_id",
+          "region"
+        ],
+        "filters": "optional: region IN ('South', 'West')",
+        "dynamic_filters": null
+      },
+      {
+        "table": "products",
+        "rows": 1224,
+        "projections": [
+          "product_code",
+          "valid_from",
+          "valid_to",
+          "category_id"
+        ],
+        "filters": null,
+        "dynamic_filters": "optional: category_id IN ('C13', 'C04', 'C06', 'C03', 'C01', 'C05') AND optional: category_id>='C01' AND optional: category_id<='C13' AND optional: category_id IN BF(category_id)"
+      },
+      {
+        "table": "product_categories",
+        "rows": 6,
+        "projections": [
+          "category_id",
+          "department",
+          "category_name"
+        ],
+        "filters": "department='Food'",
+        "dynamic_filters": null
+      }
+    ],
+    "parquet_scans": [
+      {
+        "rows": 56619,
+        "files_considered": "12/12",
+        "files_read": "8",
+        "file_filters": "(business_month = '2024-10')",
+        "projections": [
+          "store_id",
+          "raw_code",
+          "business_date",
+          "line_type",
+          "qty",
+          "unit_price"
+        ],
+        "filters": "optional: line_type IN ('SALE', 'RETURN', 'VOID')",
+        "dynamic_filters": [
+          "optional: store_id IN ('S05', 'S06', 'S03', 'S01', 'S04', 'S07', 'S02', 'S08') AND optional: store_id>='S01' AND optional: store_id<='S08' AND optional: store_id IN BF(store_id)",
+          "optional: raw_code>='P100005' AND optional: raw_code<='P108389'",
+          "optional: business_date>='2019-04-01'::DATE AND optional: business_date<='9999-12-31'::DATE"
+        ]
+      }
+    ],
+    "operator_counts": {
+      "ORDER_BY": 1,
+      "PROJECTION": 4,
+      "HASH_GROUP_BY": 2,
+      "HASH_JOIN": 4,
+      "FILTER": 2,
+      "READ_PARQUET": 1,
+      "POSTGRES_SCAN": 4
+    },
+    "total_bytes_read": 582432,
+    "latency_s": 0.1435074,
+    "httpfs": {
+      "bytes_in": "605.4 KiB",
+      "bytes_out": "0 bytes",
+      "GET": "42",
+      "PUT": "0",
+      "HEAD": "0",
+      "POST": "0",
+      "DELETE": "0"
+    }
+  },
+  "http_stats": {
+    "bytes_in": "605.4 KiB",
+    "bytes_out": "0 bytes",
+    "GET": "42",
+    "PUT": "0",
+    "HEAD": "0",
+    "POST": "0",
+    "DELETE": "0"
+  },
+  "postgres_statements": [
+    {
+      "calls": 1,
+      "rows": 1224,
+      "query": "COPY (SELECT \"product_code\", \"valid_from\", \"valid_to\", \"category_id\" FROM \"public\".\"products\" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid) TO STDOUT (FORMAT \"binary\")"
+    },
+    {
+      "calls": 1,
+      "rows": 12,
+      "query": "COPY (SELECT \"region\", \"floor_area_sqft\" FROM \"public\".\"stores\" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid) TO STDOUT (FORMAT \"binary\")"
+    },
+    {
+      "calls": 1,
+      "rows": 8,
+      "query": "COPY (SELECT \"store_id\", \"region\" FROM \"public\".\"stores\" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid AND \"region\" IN ('South', 'West')) TO STDOUT (FORMAT \"binary\")"
+    },
+    {
+      "calls": 1,
+      "rows": 6,
+      "query": "COPY (SELECT \"category_id\", \"department\", \"category_name\" FROM \"public\".\"product_categories\" WHERE ctid BETWEEN '(0,0)'::tid AND '(4294967295,0)'::tid AND \"department\" = 'Food' COLLATE \"C\") TO STDOUT (FORMAT \"binary\")"
+    }
+  ],
+  "postgres_rows_returned": 1250,
+  "master_rows": 1250,
+  "october_sale_lines": 81468,
+  "minio_before": {
+    "deleteobject": 2,
+    "getobject": 7021,
+    "headobject": 121,
+    "listbuckets": 2,
+    "listobjectsv2": 511,
+    "putobject": 583,
+    "bytes_sent": 116665539
+  },
+  "minio_after": {
+    "deleteobject": 2,
+    "getobject": 7062,
+    "headobject": 121,
+    "listbuckets": 2,
+    "listobjectsv2": 512,
+    "putobject": 583,
+    "bytes_sent": 117285564
+  },
+  "minio_delta": {
+    "listobjectsv2": 1,
+    "listbuckets": 0,
+    "bytes_sent": 620025,
+    "headobject": 0,
+    "putobject": 0,
+    "deleteobject": 0,
+    "getobject": 41
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "october_every_row": 122501668.05999969,
+  "october_revenue": 56359195.91999996,
+  "october_inflation": 2.173587931131715,
+  "item_lines": 766913,
+  "join_code_only": 782077,
+  "join_code_and_date": 766796,
+  "fact_rows": 789516,
+  "fact_revenue": 522865735.75,
+  "agg_revenue": 522865735.75,
+  "bytes_fact_keys_only": 6469836,
+  "bytes_fact_denormalised": 6473651,
+  "bytes_fact_keys_only_decoded": 25416961,
+  "bytes_fact_denorm_decoded": 25420298,
+  "bytes_dims": 39629,
+  "assertions_passed": true
+}

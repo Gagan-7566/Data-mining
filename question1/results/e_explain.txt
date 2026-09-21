@@ -1,0 +1,243 @@
+┌─────────────────────────────────────┐
+│┌───────────────────────────────────┐│
+││    Query Profiling Information    ││
+│└───────────────────────────────────┘│
+└─────────────────────────────────────┘
+EXPLAIN ANALYZE -- =========================================================================== -- (e)  ONE QUERY ACROSS BOTH SYSTEMS -- -- The sale lines live in the object store as Parquet.  The stores, products -- and categories live in PostgreSQL.  Neither is staged into the other: this -- reads both where they already are, in a single statement. -- --   read_parquet('s3://annapurna-lake/...')   -> MinIO, over httpfs --   pg.stores / pg.products / pg.product_categories --                                             -> PostgreSQL, over postgres_scanner -- -- The question: for October 2024, in the South and West regions, how did the -- Food department sell by region and category -- and what does that come to -- per square foot of shop floor.  Store attributes (region, floor area) only -- exist in PostgreSQL; the sale lines only exist in the object store.  There -- is no way to answer it inside either system alone. -- =========================================================================== SELECT     s.region,     c.category_name,     count(DISTINCT s.store_id)                       AS stores,     count(*)                                         AS sale_lines,     round(sum(l.qty * l.unit_price), 2)              AS revenue,     round(sum(l.qty * l.unit_price)           / max(t.total_sqft), 2)                    AS revenue_per_sqft FROM read_parquet('s3://annapurna-lake/raw/sales/**/*.parquet', hive_partitioning=1) l JOIN pg.stores              s ON s.store_id = l.store_id JOIN pg.products            p ON p.product_code = l.raw_code                              AND l.business_date BETWEEN p.valid_from AND p.valid_to JOIN pg.product_categories  c ON c.category_id = p.category_id JOIN (SELECT region, sum(floor_area_sqft) AS total_sqft       FROM pg.stores GROUP BY region)  t ON t.region = s.region WHERE l.business_month = '2024-10'   AND l.line_type IN ('SALE','RETURN','VOID')   AND s.region IN ('South','West')   AND c.department = 'Food' GROUP BY s.region, c.category_name ORDER BY s.region, revenue DESC; 
+┌─────────────────────────────────────┐
+│┌───────────────────────────────────┐│
+││         HTTPFS HTTP Stats         ││
+││                                   ││
+││           in: 605.4 KiB           ││
+││            out: 0 bytes           ││
+││              #HEAD: 0             ││
+││              #GET: 42             ││
+││              #PUT: 0              ││
+││              #POST: 0             ││
+││             #DELETE: 0            ││
+│└───────────────────────────────────┘│
+└─────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│┌──────────────────────────────────────────────┐│
+││              Total Time: 0.128s              ││
+│└──────────────────────────────────────────────┘│
+└────────────────────────────────────────────────┘
+┌───────────────────────────┐
+│           QUERY           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│      EXPLAIN_ANALYZE      │
+│    ────────────────────   │
+│                           │
+│           0 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│          ORDER_BY         │
+│    ────────────────────   │
+│        s.region ASC       │
+│    round(sum((l.qty * l   │
+│   .unit_price)), 2) DESC  │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         PROJECTION        │
+│    ────────────────────   │
+│           region          │
+│       category_name       │
+│           stores          │
+│         sale_lines        │
+│          revenue          │
+│      revenue_per_sqft     │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│       HASH_GROUP_BY       │
+│    ────────────────────   │
+│          Groups:          │
+│             #0            │
+│             #1            │
+│                           │
+│        Aggregates:        │
+│     count(DISTINCT #2)    │
+│        count_star()       │
+│          sum(#3)          │
+│          max(#4)          │
+│                           │
+│                           │
+│                           │
+│          12 rows          │
+│           0.03s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         PROJECTION        │
+│    ────────────────────   │
+│           region          │
+│       category_name       │
+│          store_id         │
+│     (qty * unit_price)    │
+│         total_sqft        │
+│                           │
+│                           │
+│                           │
+│        24,215 rows        │
+│           0.00s           │
+└─────────────┬─────────────┘
+┌─────────────┴─────────────┐
+│         HASH_JOIN         │
+│    ────────────────────   │
+│      Join Type: INNER     │
+│                           │
+│        Conditions:        │
+│  raw_code = product_code  │
+│business_date >= valid_from├────────────────────────────────────────────────────────────────────────┐
+│ business_date <= valid_to │                                                                        │
+│                           │                                                                        │
+│                           │                                                                        │
+│                           │                                                                        │
+│        24,215 rows        │                                                                        │
+│           0.01s           │                                                                        │
+└─────────────┬─────────────┘                                                                        │
+┌─────────────┴─────────────┐                                                          ┌─────────────┴─────────────┐
+│         HASH_JOIN         │                                                          │         HASH_JOIN         │
+│    ────────────────────   │                                                          │    ────────────────────   │
+│      Join Type: INNER     │                                                          │      Join Type: INNER     │
+│                           │                                                          │                           │
+│        Conditions:        │                                                          │        Conditions:        │
+│    store_id = store_id    ├──────────────┐                                           │ category_id = category_id ├──────────────┐
+│                           │              │                                           │                           │              │
+│                           │              │                                           │                           │              │
+│                           │              │                                           │                           │              │
+│        56,619 rows        │              │                                           │          520 rows         │              │
+│           0.00s           │              │                                           │           0.00s           │              │
+└─────────────┬─────────────┘              │                                           └─────────────┬─────────────┘              │
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐                             ┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│         PROJECTION        ││         HASH_JOIN         │                             │         TABLE_SCAN        ││         TABLE_SCAN        │
+│    ────────────────────   ││    ────────────────────   │                             │    ────────────────────   ││    ────────────────────   │
+│             #0            ││      Join Type: INNER     │                             │      Table: products      ││           Table:          │
+│             #1            ││                           │                             │                           ││     product_categories    │
+│             #2            ││        Conditions:        │                             │        Projections:       ││                           │
+│             #4            ││      region = region      │                             │        product_code       ││        Projections:       │
+│             #5            ││                           │                             │         valid_from        ││        category_id        │
+│                           ││                           │                             │          valid_to         ││         department        │
+│                           ││                           │                             │        category_id        ││       category_name       │
+│                           ││                           │                             │                           ││                           │
+│                           ││           0.00s           │                             │      Dynamic Filters:     ││          Filters:         │
+│           0.00s           ││                           │                             │ optional: category_id IN (││     department='Food'     │
+│                           ││                           ├──────────────┐              │ 'C13', 'C04', 'C06', 'C03'││                           │
+│                           ││                           │              │              │    , 'C01', 'C05') AND    ││                           │
+│                           ││                           │              │              │   optional: category_id>= ││                           │
+│                           ││                           │              │              │    'C01' AND optional:    ││                           │
+│                           ││                           │              │              │   category_id<='C13' AND  ││           0.00s           │
+│                           ││                           │              │              │  optional: category_id IN ││                           │
+│                           ││                           │              │              │       BF(category_id)     ││                           │
+│                           ││                           │              │              │                           ││                           │
+│                           ││                           │              │              │                           ││                           │
+│                           ││                           │              │              │                           ││                           │
+│        56,619 rows        ││           8 rows          │              │              │         1,224 rows        ││           6 rows          │
+│          (0.00s)          ││          (0.00s)          │              │              │           0.00s           ││          (0.00s)          │
+└─────────────┬─────────────┘└─────────────┬─────────────┘              │              └───────────────────────────┘└───────────────────────────┘
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│           FILTER          ││       HASH_GROUP_BY       ││           FILTER          │
+│    ────────────────────   ││    ────────────────────   ││    ────────────────────   │
+│ ((line_type = 'SALE') OR  ││         Groups: #0        ││  ((region = 'South') OR   │
+│ (line_type = 'RETURN') OR ││    Aggregates: sum(#1)    ││     (region = 'West'))    │
+│   (line_type = 'VOID'))   ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│        56,619 rows        ││           0.00s           ││           0.00s           │
+│           0.00s           ││          (0.00s)          ││          (0.00s)          │
+└─────────────┬─────────────┘└─────────────┬─────────────┘└─────────────┬─────────────┘
+┌─────────────┴─────────────┐┌─────────────┴─────────────┐┌─────────────┴─────────────┐
+│         TABLE_SCAN        ││         PROJECTION        ││         TABLE_SCAN        │
+│    ────────────────────   ││    ────────────────────   ││    ────────────────────   │
+│         Function:         ││           region          ││       Table: stores       │
+│        READ_PARQUET       ││      floor_area_sqft      ││                           │
+│                           ││                           ││        Projections:       │
+│        Projections:       ││                           ││          store_id         │
+│          store_id         ││                           ││           region          │
+│          raw_code         ││                           ││                           │
+│       business_date       ││           0.00s           ││          Filters:         │
+│         line_type         ││                           ││   optional: region IN (   │
+│            qty            ││                           ││      'South', 'West')     │
+│         unit_price        ││                           ││                           │
+│                           ││                           ││                           │
+│          Filters:         ││                           ││                           │
+│  optional: line_type IN ( ││                           ││                           │
+│ 'SALE', 'RETURN', 'VOID') ││                           ││           0.00s           │
+│                           ││                           ││                           │
+│       File Filters:       ││                           ││                           │
+│ (business_month = '2024-10││                           ││                           │
+│             ')            ││                           ││                           │
+│                           ││                           ││                           │
+│   Scanning Files: 12/12   ││                           ││                           │
+│                           ││                           ││                           │
+│      Dynamic Filters:     ││                           ││                           │
+│  optional: store_id IN (  ││                           ││                           │
+│ 'S05', 'S06', 'S03', 'S01'││                           ││                           │
+│  , 'S04', 'S07', 'S08',   ││                           ││                           │
+│    'S02') AND optional:   ││                           ││                           │
+│     store_id>='S01' AND   ││                           ││                           │
+│  optional: store_id<='S08'││                           ││                           │
+│  AND optional: store_id IN││                           ││                           │
+│        BF(store_id)       ││                           ││                           │
+│    optional: raw_code>=   ││                           ││                           │
+│  'P100005' AND optional:  ││                           ││                           │
+│     raw_code<='P108389'   ││                           ││                           │
+│ optional: business_date>= ││                           ││                           │
+│   '2019-04-01'::DATE AND  ││                           ││                           │
+│  optional: business_date<=││                           ││                           │
+│     '9999-12-31'::DATE    ││                           ││                           │
+│                           ││                           ││                           │
+│    Total Files Read: 8    ││                           ││                           │
+│                           ││                           ││                           │
+│        Filename(s):       ││                           ││                           │
+│  s3://annapurna-lake/raw  ││                           ││                           │
+│    /sales/store_id=S01    ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S02       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S03       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S04       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│   /part-0.parquet, s3:/   ││                           ││                           │
+│ /annapurna-lake/raw/sales ││                           ││                           │
+│       /store_id=S05       ││                           ││                           │
+│  /business_month=2024-10  ││                           ││                           │
+│    /part-0.parquet, ...   ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│                           ││                           ││                           │
+│        56,619 rows        ││          12 rows          ││           8 rows          │
+│           0.21s           ││          (0.00s)          ││          (0.00s)          │
+└───────────────────────────┘└─────────────┬─────────────┘└───────────────────────────┘
+                             ┌─────────────┴─────────────┐
+                             │         TABLE_SCAN        │
+                             │    ────────────────────   │
+                             │       Table: stores       │
+                             │                           │
+                             │        Projections:       │
+                             │           region          │
+                             │      floor_area_sqft      │
+                             │                           │
+                             │                           │
+                             │                           │
+                             │          12 rows          │
+                             │           0.00s           │
+                             └───────────────────────────┘

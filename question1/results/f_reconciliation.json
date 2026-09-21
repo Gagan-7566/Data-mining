@@ -1,0 +1,114 @@
+{
+  "months_matching": 9,
+  "comparison": [
+    {
+      "month": "2024-01",
+      "finance": 38446071.33,
+      "platform": 38446071.33,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-02",
+      "finance": 34887085.55,
+      "platform": 34887085.55,
+      "difference": -0.0,
+      "pct": -0.0
+    },
+    {
+      "month": "2024-03",
+      "finance": 42457899.09,
+      "platform": 41971649.09,
+      "difference": -486250.0,
+      "pct": -1.1453
+    },
+    {
+      "month": "2024-04",
+      "finance": 37958457.37,
+      "platform": 37958457.37,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-05",
+      "finance": 41764716.4,
+      "platform": 41764716.4,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-06",
+      "finance": 38987082.82,
+      "platform": 38987082.82,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-07",
+      "finance": 40527291.81,
+      "platform": 40295160.11,
+      "difference": -232131.7,
+      "pct": -0.5728
+    },
+    {
+      "month": "2024-08",
+      "finance": 45252181.75,
+      "platform": 45252181.75,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-09",
+      "finance": 44615037.46,
+      "platform": 44615037.46,
+      "difference": 0.0,
+      "pct": 0.0
+    },
+    {
+      "month": "2024-10",
+      "finance": 56359195.92,
+      "platform": 56359195.92,
+      "difference": -0.0,
+      "pct": -0.0
+    },
+    {
+      "month": "2024-11",
+      "finance": 51583838.47,
+      "platform": 51583838.47,
+      "difference": -0.0,
+      "pct": -0.0
+    },
+    {
+      "month": "2024-12",
+      "finance": 50745209.0,
+      "platform": 50745259.48,
+      "difference": 50.48,
+      "pct": 0.0001
+    }
+  ],
+  "max_reconstruction_disagreement": 0.0,
+  "july_estimate_for_missing_days": 222193.07,
+  "july_gap": -232131.7,
+  "march_gap": -486250.0,
+  "december_gap": 50.48,
+  "verdicts": [
+    {
+      "month": "2024-03",
+      "diff": -486250.0,
+      "cause": "DEFINITION",
+      "escalate": true
+    },
+    {
+      "month": "2024-07",
+      "diff": -232131.7,
+      "cause": "SOURCE DATA",
+      "escalate": true
+    },
+    {
+      "month": "2024-12",
+      "diff": 50.48,
+      "cause": "IMMATERIAL",
+      "escalate": false
+    }
+  ]
+}

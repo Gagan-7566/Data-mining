@@ -1,0 +1,15 @@
+{
+  "query_store": "S03",
+  "query_month": "2024-10",
+  "source_csv_files": 4457,
+  "source_csv_bytes": 68706877,
+  "flat_objects": 4389,
+  "flat_bytes": 22181867,
+  "partitioned_objects_total": 144,
+  "partitioned_bytes_total": 9733990,
+  "pruned_objects": 1,
+  "pruned_bytes": 113465,
+  "ms_partitioned": 19.9,
+  "ms_flat": 869.8,
+  "same_answer": true
+}

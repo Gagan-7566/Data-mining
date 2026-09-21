@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# Annapurna Stores -- analytics platform, Question 1
+#
+#   object store        : MinIO      (S3 API, port 9000 / console 9001)
+#   relational database : PostgreSQL 16 (port 5433 -- 5432 left to any local PG)
+#   analytical engine   : DuckDB, run on the host (see src/config.py).
+#                         DuckDB is embedded, so it is not a container; it
+#                         reaches MinIO over httpfs and PostgreSQL over the
+#                         postgres_scanner extension.  Nothing is copied
+#                         between the two systems.
+# ---------------------------------------------------------------------------
+services:
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: annapurna-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: annapurna
+      MINIO_ROOT_PASSWORD: annapurna_secret
+      # unauthenticated /minio/v2/metrics so part (e) can read the object
+      # store's own request counters as evidence
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  postgres:
+    image: postgres:16
+    container_name: annapurna-postgres
+    environment:
+      POSTGRES_USER: annapurna
+      POSTGRES_PASSWORD: annapurna_secret
+      POSTGRES_DB: annapurna
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=top
+      -c log_statement=all
+      -c log_min_duration_statement=0
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U annapurna -d annapurna"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  minio_data:
+  pg_data:

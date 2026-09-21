@@ -1,0 +1,17 @@
+==============================================================================
+(a) THE OBJECT STORE, IN ITS OWN CONSOLE
+==============================================================================
+
+console : http://localhost:9001
+bucket  : annapurna-lake
+credentials come from docker-compose.yml, not from anywhere personal
+
+  minio_01_login.png           the console, before sign-in
+  minio_02_bucket.png          the bucket, and its three top-level prefixes
+  minio_03_browse_raw.png      raw/sales/ -- the store_id= partitions
+  minio_04_browse_month.png    one store -- the business_month= partitions
+  minio_05_the_one_file.png    S03 / 2024-10 -- the one file the pruned query opens
+
+This is the same bucket the pipeline writes to and the same one
+DuckDB reads over httpfs.  s03_layout.py counted 1 object /
+113,465 bytes for a S03 October query; view 05 is that object.

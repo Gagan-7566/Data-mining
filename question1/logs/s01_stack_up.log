@@ -1,0 +1,29 @@
+==============================================================================
+(a) PLATFORM -- three systems, each asked to identify itself
+==============================================================================
+
+[1/3] OBJECT STORE  MinIO  @ http://localhost:9000
+      bucket s3://annapurna-lake already present
+      buckets now: ['annapurna-lake']
+
+[2/3] RELATIONAL DB  PostgreSQL @ localhost:5433/annapurna
+      PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2)
+      loading masters.sql (436,362 bytes) ...
+        stores                     12 rows
+        product_categories         14 rows
+        products                1,224 rows
+        price_revisions         4,320 rows
+
+      product codes reissued to a different product : 24
+      product rows no longer current                : 24
+
+[3/3] ANALYTICAL ENGINE  DuckDB (embedded, on the host)
+      version: v1.5.5
+        httpfs             installed=True  loaded=True
+        parquet            installed=True  loaded=True
+        postgres_scanner   installed=True  loaded=True
+      ATTACHed PostgreSQL as 'pg' -- DuckDB now sees:
+        ['pg_stat_statements', 'pg_stat_statements_info', 'price_revisions', 'product_categories', 'products', 'stores']
+      cross-check through DuckDB -> PostgreSQL: 12 stores
+
+PLATFORM UP.  object store + relational db + analytical engine all live.

@@ -1,0 +1,13 @@
+region,category_name,stores,sale_lines,revenue,revenue_per_sqft
+South,Staples & Grains,5,2922,4940102.53,146.59
+South,Edible Oils,5,2718,4060432.88,120.49
+South,Beverages,5,2433,1239968.65,36.79
+South,Confectionery,5,2636,869439.79,25.8
+South,Spices & Masala,5,2451,865024.47,25.67
+South,Biscuits & Snacks,5,2758,381165.83,11.31
+West,Staples & Grains,3,1514,2373386.42,138.79
+West,Edible Oils,3,1420,2204025.35,128.89
+West,Beverages,3,1257,664371.46,38.85
+West,Spices & Masala,3,1300,458309.68,26.8
+West,Confectionery,3,1355,435803.39,25.49
+West,Biscuits & Snacks,3,1451,199692.3,11.68

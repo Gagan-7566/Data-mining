@@ -1,0 +1,81 @@
+==============================================================================
+(c) BUILD THE STAR
+==============================================================================
+  dim_store      ok
+  dim_category   ok
+  dim_product    ok
+  dim_date       ok
+  fact_sale_line ok  (3.9s)
+  agg_revenue_day ok
+------------------------------------------------------------------------------
+trap 1 -- not every line is a sale
+------------------------------------------------------------------------------
+ every_row_in_the_file  drop_tender_only  revenue_as_defined
+          122501668.06       61250834.03         56359195.92
+
+  October, every row summed : 122,501,668.06
+  October, revenue as defined: 56,359,195.92
+  inflation if you skip this : 2.17x   (the 'surprisingly healthy October')
+  finance's signed-off October: 56,359,195.92
+------------------------------------------------------------------------------
+trap 2 -- a product code does not identify a product
+------------------------------------------------------------------------------
+product_code  product_sk                    product_name category_id valid_from   valid_to
+     P100621        1089     Catch Coriander Powder 500g         C06 2019-04-01 2024-05-31
+     P100621        2213         Cadbury Chewing Gum 50g         C13 2024-06-01 9999-12-31
+     P100784        1113           Bisleri Tea Leaf 500g         C03 2019-04-01 2024-05-31
+     P100784        2205  Camlin A4 Paper Ream Pack of 5         C14 2024-06-01 9999-12-31
+     P101004        1144     Johnson's Baby Powder Small         C09 2019-04-01 2024-05-31
+     P101004        2208 Mother Dairy Cheese Slices 500g         C02 2024-06-01 9999-12-31
+
+  item lines in the lake            : 766,913
+  rows after join on code only      : 782,077   (+15,164 phantom rows)
+  rows after join on code AND date  : 766,796
+------------------------------------------------------------------------------
+the star, as built
+------------------------------------------------------------------------------
+            tbl  n_rows
+      dim_store      12
+   dim_category      15
+    dim_product    1225
+       dim_date     366
+ fact_sale_line  789516
+agg_revenue_day   65685
+------------------------------------------------------------------------------
+integrity assertions
+------------------------------------------------------------------------------
+  source revenue-bearing lines : 789,516
+  fact_sale_line rows          : 789,516      no fan-out: True
+  rows with unresolved product : 0   must be 0: True
+  revenue surviving the product join: 522,865,735.75   ties: True
+  lake revenue                 : 522,865,735.75
+  fact revenue                 : 522,865,735.75   ties: True
+  agg  revenue                 : 522,865,735.75   ties: True
+------------------------------------------------------------------------------
+why the fact carries store_id and not the store's name
+------------------------------------------------------------------------------
+                          shape   on_disk    logical
+           keys only (store_id) 6469836.0 25416961.0
+store name+address on every row 6473651.0 25420298.0
+
+  all four dimensions together : 39,629 bytes on disk
+  repeating the store costs    : 3,815 bytes on disk (1.00x)
+  the same five columns as text: 62,158,681 bytes on the fact
+                       vs        945 bytes in dim_store (65,776x)
+
+  Read that honestly.  Parquet dictionary-encodes a column with twelve distinct
+  values down to almost nothing, so ON DISK the denormalised fact is 1.00x --
+  the storage argument people usually lead with barely exists here, and it
+  would be dishonest to claim a 10x saving.
+
+  The cost shows up in two other places.  Materialised as text -- a CSV
+  extract, a row store, strings in memory -- those five columns are
+  62,158,681 bytes on the fact against 945 in dim_store, 65,776x.
+
+  And the argument that actually decides it is maintenance: the address exists
+  in exactly one row.  When Koramangala moves, one UPDATE in PostgreSQL
+  republishes a 12-row dimension.  The alternative is rewriting 789,516
+  fact rows -- which is the same class of mistake as the three different
+  October figures: the same fact stored in many places, drifting apart.
+
+written -> results/c_model.json

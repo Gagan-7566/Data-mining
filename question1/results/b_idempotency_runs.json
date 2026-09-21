@@ -1,0 +1,35 @@
+[
+  {
+    "run": 1,
+    "source_files": 4457,
+    "partitions": 144,
+    "objects": 144,
+    "rows": 1120924,
+    "bytes": 9733990,
+    "logical_checksum": "4787560c4c8a256123548ee0df83f2a7434e51c27e58eccbc13d0fc031313505",
+    "physical_checksum": "2a1c3986c525a819e6ec962350c3cfcc8f8033c6269dcfeaf5cda6ff5028e21c",
+    "seconds": 136.1
+  },
+  {
+    "run": 2,
+    "source_files": 4457,
+    "partitions": 144,
+    "objects": 144,
+    "rows": 1120924,
+    "bytes": 9733990,
+    "logical_checksum": "4787560c4c8a256123548ee0df83f2a7434e51c27e58eccbc13d0fc031313505",
+    "physical_checksum": "2a1c3986c525a819e6ec962350c3cfcc8f8033c6269dcfeaf5cda6ff5028e21c",
+    "seconds": 112.4
+  },
+  {
+    "run": 3,
+    "source_files": 4457,
+    "partitions": 144,
+    "objects": 144,
+    "rows": 1120924,
+    "bytes": 9733990,
+    "logical_checksum": "4787560c4c8a256123548ee0df83f2a7434e51c27e58eccbc13d0fc031313505",
+    "physical_checksum": "2a1c3986c525a819e6ec962350c3cfcc8f8033c6269dcfeaf5cda6ff5028e21c",
+    "seconds": 115.9
+  }
+]

@@ -1,0 +1,126 @@
+==============================================================================
+(c) THE DASHBOARD -- the four slices, from agg_revenue_day
+==============================================================================
+------------------------------------------------------------------------------
+slice 1 -- revenue by store
+------------------------------------------------------------------------------
+store_id               store_name      city region     revenue   bills  avg_bill  revenue_per_sqft
+     S03        Annapurna T Nagar   Chennai  South 61864894.46 80509.0    768.42           6798.34
+     S10 Annapurna Rajouri Garden New Delhi  North 59327041.98 77270.0    767.79           6741.71
+     S01      Annapurna Jayanagar Bengaluru  South 56995199.14 73725.0    773.08           6950.63
+     S06   Annapurna Andheri West    Mumbai   West 52584302.70 68018.0    773.09           7203.33
+     S02    Annapurna Koramangala Bengaluru  South 47194947.02 60480.0    780.34           7374.21
+     S12      Annapurna Salt Lake   Kolkata   East 44433598.82 57655.0    770.68           7284.20
+     S04     Annapurna Kukatpally Hyderabad  South 40201258.53 52332.0    768.20           6931.25
+     S07          Annapurna Baner      Pune   West 35219585.45 45391.0    775.92           6905.80
+     S08      Annapurna Satellite Ahmedabad   West 34477161.43 44855.0    768.64           7335.57
+     S11    Annapurna Gomti Nagar   Lucknow  North 32429712.91 41723.0    777.26           7370.39
+     S05   Annapurna Kochi Marine     Kochi  South 30159037.54 38745.0    778.40           7180.72
+     S09       Annapurna Vaishali    Jaipur  North 27978995.77 36118.0    774.66           7174.10
+
+  27.0 ms
+------------------------------------------------------------------------------
+slice 2 -- revenue by product category
+------------------------------------------------------------------------------
+category_id         category_name  department     revenue  pct_of_total    units
+        C04      Staples & Grains        Food 98677244.71         18.87 122158.0
+        C09             Baby Care    Non-Food 88746237.02         16.97 116031.0
+        C05           Edible Oils        Food 82736636.78         15.82 114006.0
+        C02                 Dairy       Fresh 39696588.61          7.59 124030.0
+        C07         Personal Care    Non-Food 37437446.74          7.16  94825.0
+        C10 Frozen & Ready to Eat       Fresh 29765097.34          5.69 117045.0
+        C08             Home Care    Non-Food 28253823.00          5.40  95868.0
+        C03             Beverages        Food 25805866.86          4.94 103353.0
+        C14  Stationery & General    Non-Food 25749321.35          4.92 113068.0
+        C06       Spices & Masala        Food 18408992.48          3.52 104390.0
+        C13         Confectionery        Food 17251020.23          3.30 108536.0
+        C12   Fruits & Vegetables       Fresh 15314853.80          2.93 112527.0
+        C11                Bakery       Fresh 12957549.04          2.48 121844.0
+        C01     Biscuits & Snacks        Food  7335274.17          1.40 110002.0
+        C00   Bill-level discount Unallocated -5270216.38         -1.01    117.0
+
+  23.2 ms
+  C00 is the bill-level discount bucket: discounts that belong to a bill
+  rather than to any product.  It is shown rather than hidden so the
+  category column still adds up to total revenue.
+------------------------------------------------------------------------------
+slice 3 -- revenue by day of the week
+------------------------------------------------------------------------------
+day_of_week      revenue  days  avg_per_day    bills
+     Sunday  94969205.46    52   1826330.87 122929.0
+     Monday  59589704.80    53   1124334.05  76938.0
+    Tuesday  58523374.95    53   1104214.62  75116.0
+  Wednesday  60808849.66    52   1169400.95  78900.0
+   Thursday  65020714.40    52   1250398.35  84092.0
+     Friday  79012260.21    52   1519466.54 102921.0
+   Saturday 104941626.27    52   2018108.20 135925.0
+
+  20.5 ms
+------------------------------------------------------------------------------
+slice 4 -- revenue by month
+------------------------------------------------------------------------------
+business_month     revenue   bills  trading_days
+       2024-01 38446071.33 51258.0            31
+       2024-02 34887085.55 46306.0            29
+       2024-03 41971649.09 55288.0            31
+       2024-04 37958457.37 49888.0            30
+       2024-05 41764716.40 54324.0            31
+       2024-06 38987082.82 51253.0            30
+       2024-07 40295160.11 51674.0            31
+       2024-08 45252181.75 58256.0            31
+       2024-09 44615037.46 56942.0            30
+       2024-10 56359195.92 72052.0            31
+       2024-11 51583838.47 65658.0            30
+       2024-12 50745259.48 63922.0            31
+
+  15.5 ms
+------------------------------------------------------------------------------
+all four at once -- store x category x day-of-week x month
+------------------------------------------------------------------------------
+       store_name     category_name day_of_week business_month   revenue
+Annapurna T Nagar Biscuits & Snacks      Friday        2024-10  12841.83
+Annapurna T Nagar Biscuits & Snacks      Monday        2024-10   9433.72
+Annapurna T Nagar Biscuits & Snacks    Saturday        2024-10  20586.10
+Annapurna T Nagar Biscuits & Snacks      Sunday        2024-10  13807.63
+Annapurna T Nagar Biscuits & Snacks    Thursday        2024-10  13204.34
+Annapurna T Nagar Biscuits & Snacks     Tuesday        2024-10  11318.32
+Annapurna T Nagar Biscuits & Snacks   Wednesday        2024-10  10249.91
+Annapurna T Nagar  Staples & Grains      Friday        2024-10 115401.48
+Annapurna T Nagar  Staples & Grains      Monday        2024-10 142529.93
+Annapurna T Nagar  Staples & Grains    Saturday        2024-10 248893.90
+Annapurna T Nagar  Staples & Grains      Sunday        2024-10 221404.13
+Annapurna T Nagar  Staples & Grains    Thursday        2024-10 163796.76
+Annapurna T Nagar  Staples & Grains     Tuesday        2024-10 155341.99
+Annapurna T Nagar  Staples & Grains   Wednesday        2024-10 172805.97
+
+  27.8 ms
+==============================================================================
+'the same number every time I ask'
+==============================================================================
+
+Four differently-written queries for October revenue, run five times each.
+Two read the aggregate, one reads the fact table, one goes all the way back to
+the raw landed lines in the object store.  If the model is sound they cannot
+disagree.
+
+  agg, filtered on business_month                 56,359,195.92   all 5 runs identical
+  agg, rolled up from store and category          56,359,195.92   all 5 runs identical
+  fact table, joined to dim_date                  56,359,195.92   all 5 runs identical
+  raw landed lines in the object store            56,359,195.92   all 5 runs identical
+
+  finance, signed off 2024-11-09                  56,359,195.92
+
+  all four routes agree : True
+  agrees with finance   : True
+------------------------------------------------------------------------------
+and the number the old spreadsheet gives
+------------------------------------------------------------------------------
+
+  sum of every row in October's files :     122,501,668.06
+  revenue                             :      56,359,195.92
+  inflation                           :               2.17x
+
+  That is the surprisingly healthy October.  It is TENDER -- the bill
+  total, written into the same file as another row -- plus the GST.
+
+written -> results/c_dashboard_*.csv, c_dashboard.json

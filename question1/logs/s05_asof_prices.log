@@ -1,0 +1,211 @@
+==============================================================================
+(d) SAME QUERY, DIFFERENT PERIOD -- prices follow the period
+==============================================================================
+------------------------------------------------------------------------------
+1. 'What did that biscuit pack sell for in March?'
+------------------------------------------------------------------------------
+
+the query (sql/d_what_did_it_sell_for.sql), unchanged between runs:
+
+-- ===========================================================================
+-- (d)  "What did this pack sell for in <period>?"
+--
+-- The category manager's question, and the one the spreadsheet answered with
+-- today's shelf price.  Same two parameters every time: $period and $code.
+-- The answer is taken from price_revisions as of that period, and the product
+-- the code referred to is resolved as of that period too -- because two dozen
+-- codes were reissued in June 2024 and the code alone no longer says what was
+-- in the bag.
+-- ===========================================================================
+WITH period AS (
+    SELECT CAST($period || '-01' AS DATE)           AS period_start,
+           last_day(CAST($period || '-01' AS DATE)) AS period_end
+)
+SELECT
+    $period                                  AS asked_about,
+    dp.product_code,
+    dp.product_sk,
+    dp.product_name                          AS what_that_code_meant_then,
+    dp.category_name                         AS category_then,
+    pr.selling_price                         AS selling_price_then,
+    pr.mrp                                   AS mrp_then,
+    pr.effective_from,
+    pr.effective_to
+FROM dim_product dp
+CROSS JOIN period p
+JOIN price_revisions pr
+  ON  pr.product_sk = dp.product_sk
+  -- the revision in force at the end of the period being reported
+  AND p.period_end BETWEEN pr.effective_from AND pr.effective_to
+WHERE dp.product_code = $code
+  AND p.period_end BETWEEN dp.valid_from AND dp.valid_to
+ORDER BY dp.product_sk;
+
+
+bound values: $code = 'P106506'
+
+  $period = '2024-03'
+    asked_about product_code  product_sk what_that_code_meant_then     category_then  selling_price_then  mrp_then effective_from effective_to
+        2024-03      P106506        1930     Unibic Marie Gold 60g Biscuits & Snacks               91.95    102.98     2022-01-01   2024-04-07
+
+  $period = '2024-11'
+    asked_about product_code  product_sk what_that_code_meant_then     category_then  selling_price_then  mrp_then effective_from effective_to
+        2024-11      P106506        1930     Unibic Marie Gold 60g Biscuits & Snacks               125.8     140.9     2024-08-07   9999-12-31
+
+  $period = '2024-12'
+    asked_about product_code  product_sk what_that_code_meant_then     category_then  selling_price_then  mrp_then effective_from effective_to
+        2024-12      P106506        1930     Unibic Marie Gold 60g Biscuits & Snacks               125.8     140.9     2024-08-07   9999-12-31
+
+  ask about 2024-03 -> 91.95
+  ask about 2024-11 -> 125.8
+  the shelf price today is 125.8, which is the number the spreadsheet
+  gave the category manager when they asked about March. March's price was 91.95.
+------------------------------------------------------------------------------
+2. the same question on a code that was REISSUED in June 2024
+------------------------------------------------------------------------------
+
+  $code = 'P100621'  -- one code, two different products
+
+  $period = '2024-03':  Catch Coriander Powder 500g
+                    category Spices & Masala, sold at 210.7
+  $period = '2024-11':  Cadbury Chewing Gum 50g
+                    category Confectionery, sold at 134.28
+
+  Same code, same query, different period -- and it is not merely a
+  different price, it is a different product in a different category.
+  A report that joins on the code alone files March's coriander powder
+  under Confectionery.
+------------------------------------------------------------------------------
+3. the period report -- one query text, two periods
+------------------------------------------------------------------------------
+
+the query (sql/d_period_report.sql), unchanged between runs:
+
+-- ===========================================================================
+-- (d)  THE PERIOD REPORT
+--
+-- One query.  One parameter: $period, e.g. '2024-03' or '2024-11'.
+--
+-- Everything that has to move when the reporting period moves -- which rows
+-- are in scope, which product a code meant, and which price was in force --
+-- is derived from the period, not written into the SQL.  Ask it for March and
+-- it answers with March's products at March's prices.  Ask it for last month
+-- and it answers with last month's.  The text below does not change between
+-- the two.
+--
+-- Three separate as-of joins are doing that work:
+--
+--   1. scope        f.business_date BETWEEN period_start AND period_end
+--   2. which product   products.valid_from / valid_to   (codes were reissued)
+--   3. which price     price_revisions.effective_from / effective_to
+--
+-- The join to price_revisions is on the DAY OF THE SALE, not on the period
+-- end and not on today.  A price that changed mid-month is therefore honoured
+-- mid-month, which is what "March is March" has to mean if a price moved on
+-- the 14th.
+-- ===========================================================================
+WITH period AS (
+    SELECT CAST($period || '-01' AS DATE)              AS period_start,
+           last_day(CAST($period || '-01' AS DATE))    AS period_end
+),
+lines AS (
+    SELECT f.*
+    FROM   fact_sale_line f, period p
+    WHERE  f.business_date BETWEEN p.period_start AND p.period_end
+),
+priced AS (
+    SELECT
+        l.store_id,
+        l.business_date,
+        l.line_type,
+        l.qty,
+        l.unit_price                       AS price_printed_on_the_bill,
+        pr.selling_price                   AS price_in_force_that_day,
+        pr.mrp                             AS mrp_in_force_that_day,
+        dp.product_sk,
+        dp.product_code,
+        dp.product_name,
+        dp.category_id,
+        dp.category_name,
+        l.line_amount                      AS revenue_as_billed,
+        CAST(l.qty * coalesce(pr.selling_price, l.unit_price) AS DECIMAL(18,4))
+                                           AS revenue_at_price_in_force
+    FROM lines l
+    JOIN dim_product dp
+      ON dp.product_sk = l.product_sk
+    -- as-of price: the one revision whose window contains the day of the sale
+    LEFT JOIN price_revisions pr
+      ON  pr.product_sk = l.product_sk
+      AND l.business_date BETWEEN pr.effective_from AND pr.effective_to
+)
+SELECT
+    $period                                             AS reporting_period,
+    category_id,
+    category_name,
+    count(*)                                            AS lines,
+    round(sum(revenue_as_billed), 2)                    AS revenue_as_billed,
+    round(sum(revenue_at_price_in_force), 2)            AS revenue_at_price_in_force,
+    round(sum(revenue_at_price_in_force)
+        - sum(revenue_as_billed), 2)                    AS till_sync_drift
+FROM priced
+GROUP BY ALL
+ORDER BY revenue_as_billed DESC;
+
+
+--- EXECUTE with $period = '2024-03'  (nothing else changed) ---
+reporting_period category_id         category_name  lines  revenue_as_billed  revenue_at_price_in_force  till_sync_drift
+         2024-03         C04      Staples & Grains   4941         7930382.40                 7932824.85          2442.45
+         2024-03         C09             Baby Care   4736         7225791.72                 7224331.74         -1459.98
+         2024-03         C05           Edible Oils   4560         6509303.71                 6510401.71          1098.00
+         2024-03         C07         Personal Care   3938         3149407.08                 3148244.24         -1162.84
+         2024-03         C02                 Dairy   4981         3108012.27                 3107930.60           -81.67
+         2024-03         C10 Frozen & Ready to Eat   4754         2358078.01                 2357876.18          -201.83
+         2024-03         C08             Home Care   3799         2273641.30                 2273285.01          -356.29
+         2024-03         C03             Beverages   4176         2070373.52                 2070311.20           -62.32
+         2024-03         C14  Stationery & General   4373         2011841.34                 2011928.78            87.44
+         2024-03         C06       Spices & Masala   4350         1536955.18                 1536968.51            13.33
+         2024-03         C13         Confectionery   4390         1412880.50                 1412794.41           -86.09
+         2024-03         C12   Fruits & Vegetables   4469         1217286.54                 1217284.03            -2.51
+         2024-03         C11                Bakery   4814          999071.34                  999249.28           177.94
+         2024-03         C01     Biscuits & Snacks   4355          589924.00                  589755.16          -168.84
+         2024-03         C00   Bill-level discount   1871         -421299.82                 -421299.82             0.00
+    total revenue as billed        : 41,971,649.09
+    total at the price then in force: 41,971,885.88
+    till-sync drift                 : 236.79
+
+--- EXECUTE with $period = '2024-11'  (nothing else changed) ---
+reporting_period category_id         category_name  lines  revenue_as_billed  revenue_at_price_in_force  till_sync_drift
+         2024-11         C04      Staples & Grains   5838         9809048.70                 9808176.49          -872.21
+         2024-11         C09             Baby Care   5468         8476657.05                 8473209.49         -3447.56
+         2024-11         C05           Edible Oils   5566         8341119.61                 8338938.11         -2181.50
+         2024-11         C02                 Dairy   5881         3921830.97                 3920406.77         -1424.20
+         2024-11         C07         Personal Care   4605         3823489.55                 3823243.44          -246.11
+         2024-11         C10 Frozen & Ready to Eat   5400         2842883.31                 2842729.61          -153.70
+         2024-11         C08             Home Care   4550         2762680.41                 2762386.75          -293.66
+         2024-11         C03             Beverages   4916         2567257.71                 2567010.45          -247.26
+         2024-11         C14  Stationery & General   5352         2511451.15                 2511238.58          -212.57
+         2024-11         C06       Spices & Masala   5006         1785506.13                 1785783.85           277.72
+         2024-11         C13         Confectionery   5202         1682983.12                 1682580.80          -402.32
+         2024-11         C12   Fruits & Vegetables   5366         1511313.31                 1511541.28           227.97
+         2024-11         C11                Bakery   5919         1311238.84                 1311073.62          -165.22
+         2024-11         C01     Biscuits & Snacks   5446          747588.79                  747452.92          -135.87
+         2024-11         C00   Bill-level discount   2197         -511210.18                 -511210.18             0.00
+    total revenue as billed        : 51,583,838.47
+    total at the price then in force: 51,574,561.98
+    till-sync drift                 : -9,276.49
+------------------------------------------------------------------------------
+4. proof: the price the report used, per period
+------------------------------------------------------------------------------
+ period product_code          product_name  selling_price effective_from effective_to
+2024-03      P106506 Unibic Marie Gold 60g          91.95     2022-01-01   2024-04-07
+2024-11      P106506 Unibic Marie Gold 60g         125.80     2024-08-07   9999-12-31
+
+  full revision history for that code, from PostgreSQL:
+     selling_price    mrp effective_from effective_to
+             91.95 102.98     2022-01-01   2024-04-07
+            100.10 112.11     2024-04-08   2024-04-16
+            110.89 124.20     2024-04-17   2024-08-04
+            116.01 129.93     2024-08-05   2024-08-06
+            125.80 140.90     2024-08-07   9999-12-31
+
+written -> results/d_period_report_*.csv, d_asof.json
